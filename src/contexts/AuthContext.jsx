@@ -26,16 +26,16 @@ export const AuthProvider = ({ children }) => {
     setLoading(false)
   }, [])
 
-  const login = async (username, password) => {
+  const login = async (email, contraseña) => {
     try {
-      const user = await usuariosAPI.login(username, password)
+      const user = await usuariosAPI.login(email, contraseña)
 
       if (user) {
         setCurrentUser(user)
         sessionStorage.setItem("mvmNexusCurrentUser", JSON.stringify(user))
         return { success: true, user }
       } else {
-        return { success: false, error: "Usuario o contraseña incorrectos" }
+        return { success: false, error: "Email o contraseña incorrectos" }
       }
     } catch (error) {
       console.error("Login error:", error)

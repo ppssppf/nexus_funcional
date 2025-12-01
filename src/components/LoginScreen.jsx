@@ -4,17 +4,16 @@ import { useState } from "react"
 import { useAuth } from "../contexts/AuthContext"
 
 export const LoginScreen = ({ onShowToast }) => {
-  const [username, setUsername] = useState("")
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const { login } = useAuth()
 
   const handleSubmit = async (e) => {
-    
     e.preventDefault()
     setLoading(true)
 
-    const result = await login(username, password)
+    const result = await login(email, password)
 
     setLoading(false)
 
@@ -35,16 +34,17 @@ export const LoginScreen = ({ onShowToast }) => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block mb-2 text-gray-700 font-semibold">
-              Correo Electrónico
+            <label htmlFor="email" className="block mb-2 text-gray-700 font-semibold">
+              Email
             </label>
             <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="username"
+              autoComplete="email"
+              placeholder="usuario@ejemplo.com"
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
             />
           </div>

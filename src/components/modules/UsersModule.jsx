@@ -13,9 +13,10 @@ export const UsersModule = ({ onShowToast }) => {
   const [showModal, setShowModal] = useState(false)
   const [formData, setFormData] = useState({
     nombre: "",
-    username: "",
-    password: "",
+    email: "",
+    contraseña: "",
     rol: "",
+    estado: "activo", // Campo requerido por la base de datos
   })
 
   useEffect(() => {
@@ -38,9 +39,10 @@ export const UsersModule = ({ onShowToast }) => {
   const openModal = () => {
     setFormData({
       nombre: "",
-      username: "",
-      password: "",
+      email: "",
+      contraseña: "",
       rol: "",
+      estado: "activo",
     })
     setShowModal(true)
   }
@@ -52,10 +54,9 @@ export const UsersModule = ({ onShowToast }) => {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    // Check if username already exists
-    const existingUser = users.find((u) => u.username === formData.username)
+    const existingUser = users.find((u) => u.email === formData.email)
     if (existingUser) {
-      onShowToast("El nombre de usuario ya existe", "error")
+      onShowToast("El email ya está registrado", "error")
       return
     }
 
@@ -122,7 +123,7 @@ export const UsersModule = ({ onShowToast }) => {
                 {user.rol === "gerente" ? "Gerente" : "Líder de Proyecto"}
               </p>
 
-              <p className="text-gray-500 text-sm mb-4">@{user.username}</p>
+              <p className="text-gray-500 text-sm mb-4">{user.email}</p>
 
               <div className="mt-4">
                 <Button size="small" variant="danger" onClick={() => deleteUser(user.id_usuario)} className="w-full">
@@ -149,12 +150,13 @@ export const UsersModule = ({ onShowToast }) => {
           </div>
 
           <div>
-            <label className="block mb-2 text-gray-700 font-semibold">Usuario *</label>
+            <label className="block mb-2 text-gray-700 font-semibold">Email *</label>
             <input
-              type="text"
-              value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
+              placeholder="usuario@ejemplo.com"
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
             />
           </div>
@@ -163,8 +165,8 @@ export const UsersModule = ({ onShowToast }) => {
             <label className="block mb-2 text-gray-700 font-semibold">Contraseña *</label>
             <input
               type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              value={formData.contraseña}
+              onChange={(e) => setFormData({ ...formData, contraseña: e.target.value })}
               required
               minLength="6"
               className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
@@ -183,6 +185,19 @@ export const UsersModule = ({ onShowToast }) => {
               <option value="">Seleccionar...</option>
               <option value="lider">Líder de Proyecto</option>
               <option value="gerente">Gerente</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block mb-2 text-gray-700 font-semibold">Estado *</label>
+            <select
+              value={formData.estado}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+              required
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-3 focus:ring-blue-100 transition-all"
+            >
+              <option value="activo">Activo</option>
+              <option value="inactivo">Inactivo</option>
             </select>
           </div>
 

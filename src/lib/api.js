@@ -2,39 +2,72 @@ import { getHeaders } from "./supabase"
 
 const BASE_URL = import.meta.env.VITE_SUPABASE_URL
 
+const handleResponse = async (response) => {
+  // Si la respuesta no es OK, lanzar error con detalles
+  if (!response.ok) {
+    let errorMessage = `Error ${response.status}: ${response.statusText}`
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.message || errorData.hint || errorMessage
+    } catch {
+      // Si no hay JSON, usar el mensaje por defecto
+    }
+    throw new Error(errorMessage)
+  }
+
+  // Si es un DELETE o no hay contenido, retornar true
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return true
+  }
+
+  // Intentar parsear JSON
+  try {
+    return await response.json()
+  } catch {
+    return true // Si no hay JSON, la operación fue exitosa
+  }
+}
+
+const getHeadersWithReturn = () => ({
+  ...getHeaders(),
+  Prefer: "return=representation",
+})
+
 // Usuarios
 export const usuariosAPI = {
   getAll: async () => {
     const response = await fetch(`${BASE_URL}/rest/v1/usuario`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getById: async (id) => {
     const response = await fetch(`${BASE_URL}/rest/v1/usuario?id_usuario=eq.${id}`, {
       headers: getHeaders(),
     })
-    const data = await response.json()
+    const data = await handleResponse(response)
     return data[0]
   },
 
   create: async (usuario) => {
     const response = await fetch(`${BASE_URL}/rest/v1/usuario`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(usuario),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   update: async (id, usuario) => {
     const response = await fetch(`${BASE_URL}/rest/v1/usuario?id_usuario=eq.${id}`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(usuario),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   delete: async (id) => {
@@ -42,14 +75,14 @@ export const usuariosAPI = {
       method: "DELETE",
       headers: getHeaders(),
     })
-    return response.ok
+    return handleResponse(response)
   },
 
-  login: async (username, password) => {
-    const response = await fetch(`${BASE_URL}/rest/v1/usuario?email=eq.${username}&contraseña=eq.${password}`, {
+  login: async (email, contraseña) => {
+    const response = await fetch(`${BASE_URL}/rest/v1/usuario?email=eq.${email}&contraseña=eq.${contraseña}`, {
       headers: getHeaders(),
     })
-    const data = await response.json()
+    const data = await handleResponse(response)
     return data[0]
   },
 }
@@ -60,14 +93,14 @@ export const proyectosAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/proyecto`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getById: async (id) => {
     const response = await fetch(`${BASE_URL}/rest/v1/proyecto?id_proyecto=eq.${id}`, {
       headers: getHeaders(),
     })
-    const data = await response.json()
+    const data = await handleResponse(response)
     return data[0]
   },
 
@@ -75,25 +108,27 @@ export const proyectosAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/proyecto?id_lider=eq.${leaderId}`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   create: async (proyecto) => {
     const response = await fetch(`${BASE_URL}/rest/v1/proyecto`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(proyecto),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   update: async (id, proyecto) => {
     const response = await fetch(`${BASE_URL}/rest/v1/proyecto?id_proyecto=eq.${id}`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(proyecto),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   delete: async (id) => {
@@ -101,7 +136,7 @@ export const proyectosAPI = {
       method: "DELETE",
       headers: getHeaders(),
     })
-    return response.ok
+    return handleResponse(response)
   },
 }
 
@@ -111,32 +146,34 @@ export const historiasAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/historia_usuario`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getByProject: async (projectId) => {
     const response = await fetch(`${BASE_URL}/rest/v1/historia_usuario?id_proyecto=eq.${projectId}`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   create: async (historia) => {
     const response = await fetch(`${BASE_URL}/rest/v1/historia_usuario`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(historia),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   update: async (id, historia) => {
     const response = await fetch(`${BASE_URL}/rest/v1/historia_usuario?id_historia=eq.${id}`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(historia),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   delete: async (id) => {
@@ -144,7 +181,7 @@ export const historiasAPI = {
       method: "DELETE",
       headers: getHeaders(),
     })
-    return response.ok
+    return handleResponse(response)
   },
 }
 
@@ -154,33 +191,35 @@ export const aprobacionesAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_proyecto`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getByProject: async (projectId) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_proyecto?id_proyecto=eq.${projectId}`, {
       headers: getHeaders(),
     })
-    const data = await response.json()
+    const data = await handleResponse(response)
     return data[0]
   },
 
   create: async (aprobacion) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_proyecto`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(aprobacion),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   update: async (id, aprobacion) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_proyecto?id_aprobacion=eq.${id}`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(aprobacion),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 }
 
@@ -190,32 +229,34 @@ export const aprobacionesHistoriaAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_historia`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getByHistory: async (historiaId) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_historia?id_historia=eq.${historiaId}`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   create: async (aprobacion) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_historia`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(aprobacion),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 
   update: async (id, aprobacion) => {
     const response = await fetch(`${BASE_URL}/rest/v1/aprobacion_historia?id_aprobacion_historia=eq.${id}`, {
       method: "PATCH",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(aprobacion),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 }
 
@@ -225,23 +266,24 @@ export const evidenciasAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/evidencia`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   getByHistory: async (historiaId) => {
     const response = await fetch(`${BASE_URL}/rest/v1/evidencia?id_historia=eq.${historiaId}`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   create: async (evidencia) => {
     const response = await fetch(`${BASE_URL}/rest/v1/evidencia`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(evidencia),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 }
 
@@ -251,15 +293,16 @@ export const empresasAPI = {
     const response = await fetch(`${BASE_URL}/rest/v1/empresa`, {
       headers: getHeaders(),
     })
-    return response.json()
+    return handleResponse(response)
   },
 
   create: async (empresa) => {
     const response = await fetch(`${BASE_URL}/rest/v1/empresa`, {
       method: "POST",
-      headers: getHeaders(),
+      headers: getHeadersWithReturn(),
       body: JSON.stringify(empresa),
     })
-    return response.json()
+    const data = await handleResponse(response)
+    return Array.isArray(data) ? data[0] : data
   },
 }
