@@ -12,7 +12,7 @@ export const Toast = ({ message, type = "info", onClose }) => {
   }, [onClose])
 
   const bgColors = {
-    success: "bg-green-600",
+    success: "bg-gradient-to-r from-purple-900 via-purple-800 to-blue-900 border-b border-white/10 shadow-lg",
     error: "bg-red-600",
     info: "bg-blue-600",
   }

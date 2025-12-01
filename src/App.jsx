@@ -16,6 +16,7 @@ function App() {
   const { currentUser, loading, isManager } = useAuth()
   const [activeModule, setActiveModule] = useState("")
   const [toast, setToast] = useState(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false) // Menu expandido por defecto
 
   useEffect(() => {
     if (currentUser) {
@@ -29,6 +30,10 @@ function App() {
 
   const closeToast = () => {
     setToast(null)
+  }
+
+  const handleSidebarCollapse = (isCollapsed) => {
+    setSidebarCollapsed(isCollapsed)
   }
 
   if (loading) {
@@ -45,18 +50,28 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      <Navigation activeModule={activeModule} onModuleChange={setActiveModule} isManager={isManager} />
+      {/* Sidebar Navigation - Fixed */}
+      <Navigation 
+        activeModule={activeModule} 
+        onModuleChange={setActiveModule} 
+        isManager={isManager}
+        onCollapse={handleSidebarCollapse}
+      />
 
-      <main className="py-8">
-        <div className="max-w-7xl mx-auto px-5">
-          {activeModule === "projects" && <ProjectsModule onShowToast={showToast} />}
-          {activeModule === "approval" && <ApprovalModule onShowToast={showToast} />}
-          {activeModule === "tracking" && <TrackingModule onShowToast={showToast} />}
-          {activeModule === "history" && <HistoryModule onShowToast={showToast} />}
-          {activeModule === "users" && <UsersModule onShowToast={showToast} />}
-        </div>
-      </main>
+      {/* Main Content Area - Con margen dinámico para el sidebar */}
+      <div className={`transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'ml-20' : 'ml-64'}`}>
+        <Header />
+        
+        <main className="py-8">
+          <div className="max-w-7xl mx-auto px-5 sm:px-6 lg:px-8">
+            {activeModule === "projects" && <ProjectsModule onShowToast={showToast} />}
+            {activeModule === "approval" && <ApprovalModule onShowToast={showToast} />}
+            {activeModule === "tracking" && <TrackingModule onShowToast={showToast} />}
+            {activeModule === "history" && <HistoryModule onShowToast={showToast} />}
+            {activeModule === "users" && <UsersModule onShowToast={showToast} />}
+          </div>
+        </main>
+      </div>
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={closeToast} />}
     </div>
