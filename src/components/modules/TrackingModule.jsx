@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Modal from "../Modal"
+import { Toast } from "../Toast"
 import {
   proyectosAPI,
   historiasAPI,
@@ -27,6 +28,7 @@ import {
   FileCheck,
   XCircle,
   Loader2,
+  AlertTriangle,
 } from "lucide-react"
 
 export const TrackingModule = () => {
@@ -45,13 +47,22 @@ export const TrackingModule = () => {
 
   const [projectLeader, setProjectLeader] = useState(null)
   const [projectCompany, setProjectCompany] = useState(null)
+  const [leaders, setLeaders] = useState({})
 
   const [managerComment, setManagerComment] = useState("")
   const [uploadingFile, setUploadingFile] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectReason, setRejectReason] = useState("")
+  const [toast, setToast] = useState(null)
+
   const onShowToast = (message, type = "info") => {
-    alert(message)
+    setToast({ message, type })
+  }
+
+  const closeToast = () => {
+    setToast(null)
   }
 
   const isValidFileType = (file) => {
@@ -64,32 +75,32 @@ export const TrackingModule = () => {
     return validTypes.includes(file.type) || validExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))
   }
 
- const uploadToCloudinary = async (file) => {
-  const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME // dzxuwgzn5
-  const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_KEY_NAME // nexus
+  const uploadToCloudinary = async (file) => {
+    const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME // dzxuwgzn5
+    const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_KEY_NAME // nexus
 
-  console.log("Uploading to Cloudinary:", { CLOUD_NAME, UPLOAD_PRESET })
+    console.log("Uploading to Cloudinary:", { CLOUD_NAME, UPLOAD_PRESET })
 
-  const formData = new FormData()
-  formData.append("file", file)
-  formData.append("upload_preset", UPLOAD_PRESET)
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("upload_preset", UPLOAD_PRESET)
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`,
-    {
-      method: "POST",
-      body: formData,
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    )
+
+    if (!response.ok) {
+      const error = await response.json()
+      console.error("Cloudinary error:", error)
+      throw new Error(error.error?.message || "Error al subir archivo")
     }
-  )
 
-  if (!response.ok) {
-    const error = await response.json()
-    console.error("Cloudinary error:", error)
-    throw new Error(error.error?.message || "Error al subir archivo")
+    return await response.json()
   }
-
-  return await response.json()
-}
 
   useEffect(() => {
     loadProjects()
@@ -108,6 +119,22 @@ export const TrackingModule = () => {
 
       const approved = data.filter((p) => p.estado_proyecto === "aprobado")
       setProjects(approved)
+
+      // Cargar líderes automáticamente
+      const leaderIds = [...new Set(approved.map(p => p.id_lider))]
+
+      const leadersMap = {}
+
+      for (const id of leaderIds) {
+        try {
+          const leader = await usuariosAPI.getById(id)
+          leadersMap[id] = leader
+        } catch (error) {
+          console.error("Error cargando líder:", error)
+        }
+      }
+
+      setLeaders(leadersMap)
 
       const storiesMap = {}
       for (const project of approved) {
@@ -282,25 +309,43 @@ export const TrackingModule = () => {
     }
   }
 
-  const rejectProgress = async () => {
-    if (confirm("¿Está seguro de NO APROBAR este progreso? Las historias volverán a estado pendiente.")) {
-      try {
-        const pendingStories = userStories.filter((s) => s.estado_historia === "en_revision")
+  const openRejectModal = () => {
+    setRejectReason("")
+    setShowRejectModal(true)
+  }
 
-        for (const story of pendingStories) {
-          await historiasAPI.update(story.id_historia, {
-            estado_historia: "pendiente",
-          })
-        }
+  const confirmRejectProgress = async () => {
+    if (!rejectReason.trim()) {
+      onShowToast("Debe proporcionar una razón para rechazar", "error")
+      return
+    }
 
-        onShowToast("Progreso no aprobado. Las historias han vuelto a estado pendiente.", "error")
-        setShowProgressDetailsModal(false)
-        setShowManagerModal(false)
-        loadProjects()
-      } catch (error) {
-        console.error("Error rejecting progress:", error)
-        onShowToast(`Error al rechazar progreso: ${error.message}`, "error")
+    try {
+      const pendingStories = userStories.filter((s) => s.estado_historia === "en_revision")
+
+      for (const story of pendingStories) {
+        await historiasAPI.update(story.id_historia, {
+          estado_historia: "pendiente",
+        })
+
+        // Opcional: Guardar la razón del rechazo
+        await aprobacionesHistoriaAPI.create({
+          fecha: new Date().toISOString().split("T")[0],
+          estado: "rechazado",
+          comentario: rejectReason,
+          id_historia: story.id_historia,
+          id_gerente: currentUser.id_usuario,
+        })
       }
+
+      onShowToast("Progreso rechazado. Las historias han vuelto a estado pendiente.", "info")
+      setShowRejectModal(false)
+      setShowProgressDetailsModal(false)
+      setShowManagerModal(false)
+      loadProjects()
+    } catch (error) {
+      console.error("Error rejecting progress:", error)
+      onShowToast(`Error al rechazar progreso: ${error.message}`, "error")
     }
   }
 
@@ -393,7 +438,7 @@ export const TrackingModule = () => {
                       <div className="flex items-center gap-2 text-gray-600">
                         <Users className="w-4 h-4 text-gray-400" />
                         <span className="font-medium">Líder:</span>
-                        <span>{currentUser?.nombre || "N/A"}</span>
+                        <span>{leaders[project.id_lider]?.nombre?.toUpperCase() || "Cargando..."}</span>
                       </div>
                       <div className="flex items-center gap-2 text-gray-600">
                         <Calendar className="w-4 h-4 text-gray-400" />
@@ -501,24 +546,22 @@ export const TrackingModule = () => {
                       <div
                         key={story.id_historia}
                         onClick={() => !isDisabled && toggleStory(story.id_historia)}
-                        className={`flex items-center gap-3 px-4 py-3 bg-white border-2 rounded-lg transition-all ${
-                          isDisabled
-                            ? "border-gray-200 opacity-60 bg-gray-50 cursor-not-allowed"
-                            : isSelected
-                              ? "border-purple-500 bg-purple-50 cursor-pointer"
-                              : "border-gray-200 hover:border-purple-300 hover:bg-purple-50/50 cursor-pointer"
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-3 bg-white border-2 rounded-lg transition-all ${isDisabled
+                          ? "border-gray-200 opacity-60 bg-gray-50 cursor-not-allowed"
+                          : isSelected
+                            ? "border-purple-500 bg-purple-50 cursor-pointer"
+                            : "border-gray-200 hover:border-purple-300 hover:bg-purple-50/50 cursor-pointer"
+                          }`}
                       >
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            story.estado_historia === "aprobado"
-                              ? "bg-green-100 text-green-700"
-                              : story.estado_historia === "en_revision"
-                                ? "bg-amber-100 text-amber-700"
-                                : isSelected
-                                  ? "bg-purple-600 text-white"
-                                  : "bg-gray-200 text-gray-600"
-                          }`}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${story.estado_historia === "aprobado"
+                            ? "bg-green-100 text-green-700"
+                            : story.estado_historia === "en_revision"
+                              ? "bg-amber-100 text-amber-700"
+                              : isSelected
+                                ? "bg-purple-600 text-white"
+                                : "bg-gray-200 text-gray-600"
+                            }`}
                         >
                           {story.estado_historia === "aprobado" ? (
                             <CheckCircle2 className="w-4 h-4" />
@@ -605,7 +648,7 @@ export const TrackingModule = () => {
       </Modal>
 
       {/* Modal Detalles del Progreso (Gerente) */}
-      <Modal isOpen={showProgressDetailsModal} onClose={() => setShowProgressDetailsModal(false)} title="" size="large">
+      <Modal isOpen={showProgressDetailsModal} onClose={() => setShowProgressDetailsModal(false)} title="Seguimiento Del Proyecto" size="large">
         {selectedProject && (
           <div className="space-y-6">
             {/* Header con gradiente */}
@@ -626,13 +669,13 @@ export const TrackingModule = () => {
               <div className="flex items-center gap-2 text-sm">
                 <Users className="w-4 h-4 text-gray-400" />
                 <span className="font-medium text-gray-700">Líder:</span>
-                <span className="text-gray-600">{projectLeader?.nombre || "Cargando..."}</span>
+                <span className="text-gray-600">{projectLeader?.nombre?.toUpperCase() || "Cargando..."}</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-gray-400" />
                 <span className="font-medium text-gray-700">Empresa:</span>
                 <span className="text-gray-600">
-                  {projectCompany?.nombre || selectedProject.empresa || "Cargando..."}
+                  {selectedProject.empresa?.toUpperCase() || "Cargando..."}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm">
@@ -738,15 +781,7 @@ export const TrackingModule = () => {
               </div>
             </div>
 
-            <div className="flex gap-3 justify-end pt-4 border-t-2 border-gray-100">
-              <button
-                type="button"
-                onClick={rejectProgress}
-                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border-2 border-red-200 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors"
-              >
-                <XCircle className="w-4 h-4" />
-                Rechazar
-              </button>
+            <div className="flex gap-3 justify-between pt-4 border-t-2 border-gray-100">
               <button
                 type="button"
                 onClick={() => setShowProgressDetailsModal(false)}
@@ -754,14 +789,24 @@ export const TrackingModule = () => {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={approveProgress}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium text-sm hover:shadow-lg transition-all"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Aprobar Seleccionadas
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={openRejectModal}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border-2 border-red-200 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Rechazar
+                </button>
+                <button
+                  type="button"
+                  onClick={approveProgress}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium text-sm hover:shadow-lg transition-all"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Aprobar Seleccionadas
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -792,18 +837,16 @@ export const TrackingModule = () => {
                       <div
                         key={story.id_historia}
                         onClick={() => toggleStory(story.id_historia)}
-                        className={`flex items-center gap-3 px-4 py-3 bg-white border-2 rounded-lg transition-all cursor-pointer ${
-                          selectedStories.includes(story.id_historia)
-                            ? "border-green-500 bg-green-50"
-                            : "border-gray-200 hover:border-green-300"
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-3 bg-white border-2 rounded-lg transition-all cursor-pointer ${selectedStories.includes(story.id_historia)
+                          ? "border-green-500 bg-green-50"
+                          : "border-gray-200 hover:border-green-300"
+                          }`}
                       >
                         <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            selectedStories.includes(story.id_historia)
-                              ? "bg-green-600 text-white"
-                              : "bg-gray-200 text-gray-600"
-                          }`}
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${selectedStories.includes(story.id_historia)
+                            ? "bg-green-600 text-white"
+                            : "bg-gray-200 text-gray-600"
+                            }`}
                         >
                           {selectedStories.includes(story.id_historia) ? (
                             <CheckCircle2 className="w-4 h-4" />
@@ -820,7 +863,7 @@ export const TrackingModule = () => {
               <div className="flex gap-3 justify-end pt-4 border-t-2 border-gray-100">
                 <button
                   type="button"
-                  onClick={rejectProgress}
+                  onClick={openRejectModal}
                   className="flex items-center gap-2 px-5 py-2.5 bg-red-50 text-red-600 border-2 border-red-200 rounded-lg font-medium text-sm hover:bg-red-100 transition-colors"
                 >
                   <XCircle className="w-4 h-4" />
@@ -845,6 +888,77 @@ export const TrackingModule = () => {
           </div>
         )}
       </Modal>
+
+      <Modal isOpen={showRejectModal} onClose={() => setShowRejectModal(false)} title="Rechazar Progreso">
+        <div className="space-y-5">
+          {/* Advertencia */}
+          <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-semibold text-red-900 mb-1">¡Atención!</h4>
+              <p className="text-sm text-red-700">
+                Al rechazar el progreso, las historias en revisión volverán a estado pendiente.
+                El líder del proyecto deberá volver a enviar las evidencias.
+              </p>
+            </div>
+          </div>
+
+          {/* Información del proyecto */}
+          {selectedProject && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="font-semibold text-gray-800 mb-2">Proyecto: {selectedProject.nombre}</h4>
+              <p className="text-sm text-gray-600">
+                Historias a rechazar: {userStories.filter((s) => s.estado_historia === "en_revision").length}
+              </p>
+            </div>
+          )}
+
+          {/* Razón del rechazo */}
+          <div>
+            <label className="block mb-2 text-sm font-semibold text-gray-700">
+              Razón del Rechazo *
+            </label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Explique por qué está rechazando este progreso..."
+              rows="4"
+              className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-red-500 focus:ring-4 focus:ring-red-100 transition-all text-sm resize-none"
+            />
+            <p className="text-xs text-gray-500 mt-1.5">
+              Esta información será enviada al líder del proyecto
+            </p>
+          </div>
+
+          {/* Botones */}
+          <div className="flex gap-3 justify-end pt-4 border-t-2 border-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowRejectModal(false)}
+              className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmRejectProgress}
+              className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-lg font-medium text-sm hover:bg-red-700 transition-colors"
+            >
+              <XCircle className="w-4 h-4" />
+              Confirmar Rechazo
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={closeToast}
+          duration={3000}
+        />
+      )}
     </div>
   )
 }

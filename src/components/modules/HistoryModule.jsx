@@ -233,7 +233,7 @@ export const HistoryModule = ({ onShowToast }) => {
                   <th className="px-4 py-4 text-left text-sm font-semibold">Proyecto</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold">Empresa</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold">Nivel IA</th>
-                  <th className="px-4 py-4 text-left text-sm font-semibold">Estado</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold" width="15%">Estado</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold">Historias</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold">Progreso</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold">Fecha</th>
