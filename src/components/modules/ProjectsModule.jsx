@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useAuth } from "../../contexts/AuthContext"
-import { proyectosAPI, historiasAPI } from "../../lib/api"
+import { proyectosAPI, historiasAPI, aprobacionesAPI } from "../../lib/api"
 import { Modal } from "../Modal"
 import {
   Plus,
@@ -15,12 +15,15 @@ import {
   Clock,
   FileText,
   Trash2,
-  Rocket,
+  Eye,
+  Award,
+  AlertTriangle,
+  MessageSquare,
   Target,
   Zap,
+  Rocket,
   ChevronRight,
-  AlertTriangle,
-  Eye,
+  AlertCircle,
 } from "lucide-react"
 
 export const ProjectsModule = ({ onShowToast }) => {
@@ -51,6 +54,14 @@ export const ProjectsModule = ({ onShowToast }) => {
   const [userStories, setUserStories] = useState([])
   const [newStory, setNewStory] = useState("")
   const [cancelReason, setCancelReason] = useState("")
+  const [showReturnReasonModal, setShowReturnReasonModal] = useState(false)
+  const [selectedReturnProject, setSelectedReturnProject] = useState(null)
+  const [returnReason, setReturnReason] = useState("")
+  const [loadingReturnReason, setLoadingReturnReason] = useState(false)
+  // CHANGE: New state to know if it's a return or rejection
+  const [reasonType, setReasonType] = useState("devuelto") // "devuelto" or "rechazado"
+  const [projectApprovals, setProjectApprovals] = useState([])
+  const [loadingApprovals, setLoadingApprovals] = useState(false)
 
   useEffect(() => {
     if (currentUser?.id_usuario) {
@@ -82,6 +93,7 @@ export const ProjectsModule = ({ onShowToast }) => {
     setSelectedProject(project)
     setShowDetailModal(true)
     setLoadingStories(true)
+    setLoadingApprovals(true)
     try {
       const stories = await historiasAPI.getByProject(project.id_proyecto)
       setProjectStories(stories)
@@ -91,12 +103,22 @@ export const ProjectsModule = ({ onShowToast }) => {
     } finally {
       setLoadingStories(false)
     }
+    try {
+      const approvals = await aprobacionesAPI.getByProject(project.id_proyecto)
+      setProjectApprovals(approvals)
+    } catch (error) {
+      console.error("Error loading approvals:", error)
+      setProjectApprovals([])
+    } finally {
+      setLoadingApprovals(false)
+    }
   }
 
   const closeDetailModal = () => {
     setShowDetailModal(false)
     setSelectedProject(null)
     setProjectStories([])
+    setProjectApprovals([])
   }
 
   const openModal = async (project = null) => {
@@ -275,6 +297,47 @@ export const ProjectsModule = ({ onShowToast }) => {
     }
   }
 
+  const openReturnReasonModal = async (project) => {
+    setSelectedReturnProject(project)
+    setShowReturnReasonModal(true)
+    setLoadingReturnReason(true)
+    setReturnReason("")
+
+    const tipo = project.estado_proyecto === "no-aprobado" ? "rechazado" : "devuelto"
+    setReasonType(tipo)
+
+    try {
+      const allApprovals = await aprobacionesAPI.getAll()
+
+      // Filtrar por id_proyecto y estado_asignado
+      const projectApprovals = allApprovals.filter(
+        (a) => a.id_proyecto === project.id_proyecto && a.estado_asignado === tipo,
+      )
+
+      // Ordenar por fecha para obtener la más reciente
+      const approvalFound = projectApprovals.sort(
+        (a, b) => new Date(b.fecha_aprobacion) - new Date(a.fecha_aprobacion),
+      )[0]
+
+      if (approvalFound && approvalFound.motivo_devolucion) {
+        setReturnReason(approvalFound.motivo_devolucion)
+      } else {
+        setReturnReason("No se encontró el motivo registrado.")
+      }
+    } catch (error) {
+      console.error("Error loading return reason:", error)
+      setReturnReason("Error al cargar el motivo.")
+    } finally {
+      setLoadingReturnReason(false)
+    }
+  }
+
+  const closeReturnReasonModal = () => {
+    setShowReturnReasonModal(false)
+    setSelectedReturnProject(null)
+    setReturnReason("")
+  }
+
   const getStatusLabel = (status) => {
     const labels = {
       pendiente: "Pendiente",
@@ -319,6 +382,26 @@ export const ProjectsModule = ({ onShowToast }) => {
       avanzado: { color: "from-orange-500 to-red-500", icon: Rocket, description: "IA Generativa" },
     }
     return info[level] || info.bajo
+  }
+
+  const getApprovalStateLabel = (estado) => {
+    const labels = {
+      devuelto: "Devuelto",
+      aprobado: "Aprobado",
+      "no-aprobado": "Rechazado", // This should match the state used in the API and DB
+      rechazado: "Rechazado", // Added for clarity if 'rechazado' is directly used in approvals
+    }
+    return labels[estado] || estado
+  }
+
+  const getApprovalStateColor = (estado) => {
+    const colors = {
+      devuelto: "bg-orange-100 text-orange-700 border-orange-200",
+      aprobado: "bg-green-100 text-green-700 border-green-200",
+      "no-aprobado": "bg-red-100 text-red-700 border-red-200",
+      rechazado: "bg-red-100 text-red-700 border-red-200", // Added for clarity
+    }
+    return colors[estado] || "bg-gray-100 text-gray-700 border-gray-200"
   }
 
   const aiLevels = [
@@ -404,11 +487,23 @@ export const ProjectsModule = ({ onShowToast }) => {
                 <h3 className="text-lg font-bold text-gray-800 group-hover:text-purple-600 transition-colors line-clamp-2 flex-1">
                   {project.nombre?.toUpperCase()}
                 </h3>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-2 border ${getStatusColor(project.estado_proyecto)}`}
-                >
-                  {getStatusLabel(project.estado_proyecto)}
-                </span>
+                {project.estado_proyecto === "devuelto" || project.estado_proyecto === "no-aprobado" ? (
+                  <button
+                    onClick={() => openReturnReasonModal(project)}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-2 border ${getStatusColor(project.estado_proyecto)} hover:ring-2 hover:ring-${project.estado_proyecto === "devuelto" ? "orange" : "red"}-300 transition-all cursor-pointer`}
+                    title={
+                      project.estado_proyecto === "devuelto" ? "Ver motivo de devolución" : "Ver motivo de rechazo"
+                    }
+                  >
+                    {getStatusLabel(project.estado_proyecto)}
+                  </button>
+                ) : (
+                  <span
+                    className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ml-2 border ${getStatusColor(project.estado_proyecto)}`}
+                  >
+                    {getStatusLabel(project.estado_proyecto)}
+                  </span>
+                )}
               </div>
               <p className="text-gray-600 text-sm mb-4 line-clamp-2">{project.descripcion}</p>
               <div className="mb-4">
@@ -447,7 +542,6 @@ export const ProjectsModule = ({ onShowToast }) => {
                 </div>
               </div>
               <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                {/* Botón Ver Detalle - siempre visible */}
                 <button
                   onClick={() => openDetailModal(project)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg font-medium text-sm hover:shadow-lg transition-all"
@@ -479,6 +573,80 @@ export const ProjectsModule = ({ onShowToast }) => {
           ))}
         </div>
       )}
+
+      {/* Modal de Motivo de Devolución/Rechazo */}
+      <Modal
+        isOpen={showReturnReasonModal}
+        onClose={() => setShowReturnReasonModal(false)}
+        title={reasonType === "rechazado" ? "Motivo de Rechazo" : "Motivo de Devolución"}
+      >
+        {selectedReturnProject && (
+          <div className="space-y-5">
+            <div
+              className={`${reasonType === "rechazado" ? "bg-gradient-to-r from-red-500 to-rose-500" : "bg-gradient-to-r from-orange-500 to-amber-500"} rounded-xl p-4 text-white`}
+            >
+              <p className="text-sm opacity-90 mb-1">Proyecto</p>
+              <h3 className="text-lg font-bold">{selectedReturnProject.nombre?.toUpperCase()}</h3>
+            </div>
+
+            {/* Motivo */}
+            <div
+              className={`${reasonType === "rechazado" ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200"} border rounded-xl p-4`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-10 h-10 ${reasonType === "rechazado" ? "bg-red-100" : "bg-orange-100"} rounded-lg flex items-center justify-center flex-shrink-0`}
+                >
+                  <AlertTriangle
+                    className={`w-5 h-5 ${reasonType === "rechazado" ? "text-red-600" : "text-orange-600"}`}
+                  />
+                </div>
+                <div className="flex-1">
+                  <p
+                    className={`text-xs font-semibold ${reasonType === "rechazado" ? "text-red-800" : "text-orange-800"} uppercase tracking-wide mb-2`}
+                  >
+                    {reasonType === "rechazado" ? "Razón del rechazo" : "Razón de la devolución"}
+                  </p>
+                  {loadingReturnReason ? (
+                    <div className="flex items-center gap-2 text-gray-500">
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                      <span className="text-sm">Cargando...</span>
+                    </div>
+                  ) : (
+                    <p
+                      className={`${reasonType === "rechazado" ? "text-red-900" : "text-orange-900"} text-sm leading-relaxed`}
+                    >
+                      {returnReason || "No se encontró el motivo registrado."}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Botones */}
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                onClick={() => setShowReturnReasonModal(false)}
+                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
+              >
+                Cerrar
+              </button>
+              {selectedReturnProject.estado_proyecto === "devuelto" && (
+                <button
+                  onClick={() => {
+                    setShowReturnReasonModal(false)
+                    openModal(selectedReturnProject)
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Editar Proyecto
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal isOpen={showDetailModal} onClose={closeDetailModal} title="Detalle del Proyecto" size="large">
         {selectedProject && (
@@ -583,6 +751,73 @@ export const ProjectsModule = ({ onShowToast }) => {
               </div>
             </div>
 
+            {selectedProject.estado_proyecto === "aprobado" && selectedProject.incentivo && (
+              <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-5 border border-amber-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 bg-gradient-to-br from-amber-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
+                    <Award className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-amber-800 text-xs font-semibold uppercase tracking-wide mb-1">
+                      Incentivo Asignado
+                    </p>
+                    <p className="text-amber-900 text-xl font-bold">{selectedProject.incentivo}</p>
+                  </div>
+                  <div className="hidden sm:block">
+                    <Sparkles className="w-6 h-6 text-amber-400" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {projectApprovals.length > 0 && (
+              <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-gray-800 font-semibold">Historial de Revisiones</h4>
+                    <p className="text-xs text-gray-500">Comentarios del gerente sobre el proyecto</p>
+                  </div>
+                </div>
+
+                {loadingApprovals ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="w-6 h-6 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {projectApprovals.map((approval, index) => (
+                      <div
+                        key={approval.id_aprobacion || index}
+                        className="bg-white rounded-xl p-4 border border-gray-200"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getApprovalStateColor(approval.estado_asignado)}`}
+                          >
+                            {getApprovalStateLabel(approval.estado_asignado)}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {approval.fecha_aprobacion ? formatearFecha(approval.fecha_aprobacion) : "Sin fecha"}
+                          </span>
+                        </div>
+                        {approval.motivo_devolucion && (
+                          <p className="text-sm text-gray-700 leading-relaxed mt-2">{approval.motivo_devolucion}</p>
+                        )}
+                        {!approval.motivo_devolucion && approval.estado_asignado === "aprobado" && (
+                          <p className="text-sm text-green-600 italic mt-2">
+                            Proyecto aprobado sin observaciones adicionales.
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Historias de Usuario */}
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -656,7 +891,7 @@ export const ProjectsModule = ({ onShowToast }) => {
       <Modal
         isOpen={showModal}
         onClose={closeModal}
-        title={editingProject ? "Editar Proyecto" : "Crear Nuevo Proyecto"}
+        title={editingProject ? "Editar Proyecto" : "Nuevo Proyecto"}
         size="large"
       >
         <div className="space-y-6">
@@ -1032,6 +1267,110 @@ export const ProjectsModule = ({ onShowToast }) => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Return Reason Modal */}
+      <Modal
+        isOpen={showReturnReasonModal}
+        onClose={closeReturnReasonModal}
+        title={reasonType === "rechazado" ? "Motivo de Rechazo" : "Motivo de Devolución"}
+        size="medium"
+      >
+        {selectedReturnProject && (
+          <div className="space-y-5">
+            {/* Header con gradiente dinámico */}
+            <div
+              className={`rounded-xl p-5 text-white ${
+                reasonType === "rechazado"
+                  ? "bg-gradient-to-r from-red-500 to-rose-500"
+                  : "bg-gradient-to-r from-orange-500 to-amber-500"
+              }`}
+            >
+              <h3 className="text-xl font-bold mb-1">{selectedReturnProject.nombre}</h3>
+              <p className={reasonType === "rechazado" ? "text-red-100 text-sm" : "text-orange-100 text-sm"}>
+                {reasonType === "rechazado"
+                  ? "Este proyecto no fue aprobado"
+                  : "Este proyecto fue devuelto para revisión"}
+              </p>
+            </div>
+
+            {/* Motivo dinámico */}
+            <div
+              className={`border-2 rounded-xl p-5 ${
+                reasonType === "rechazado" ? "bg-red-50 border-red-200" : "bg-orange-50 border-orange-200"
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    reasonType === "rechazado" ? "bg-red-100" : "bg-orange-100"
+                  }`}
+                >
+                  {reasonType === "rechazado" ? (
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-orange-600" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <h4
+                    className={`font-semibold mb-2 ${reasonType === "rechazado" ? "text-red-800" : "text-orange-800"}`}
+                  >
+                    {reasonType === "rechazado" ? "Motivo del Rechazo" : "Observaciones del Gerente"}
+                  </h4>
+                  {loadingReturnReason ? (
+                    <div
+                      className={`flex items-center gap-2 ${
+                        reasonType === "rechazado" ? "text-red-600" : "text-orange-600"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 border-2 rounded-full animate-spin ${
+                          reasonType === "rechazado"
+                            ? "border-red-300 border-t-red-600"
+                            : "border-orange-300 border-t-orange-600"
+                        }`}
+                      ></div>
+                      <span className="text-sm">Cargando motivo...</span>
+                    </div>
+                  ) : (
+                    <p className={`leading-relaxed ${reasonType === "rechazado" ? "text-red-700" : "text-orange-700"}`}>
+                      {returnReason ||
+                        (reasonType === "rechazado"
+                          ? "No se encontró el motivo del rechazo."
+                          : "No se encontró el motivo de devolución.")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Botones dinámicos */}
+            <div className="flex gap-3 justify-end pt-4 border-t-2 border-gray-100">
+              <button
+                type="button"
+                onClick={closeReturnReasonModal}
+                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl font-semibold text-sm hover:bg-gray-50 transition-colors"
+              >
+                Cerrar
+              </button>
+              {/* Solo mostrar botón de editar si es devuelto, no si es rechazado */}
+              {reasonType === "devuelto" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeReturnReasonModal()
+                    openModal(selectedReturnProject)
+                  }}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold text-sm hover:shadow-lg transition-all flex items-center gap-2"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Editar Proyecto
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )

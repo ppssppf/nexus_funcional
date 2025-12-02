@@ -1,10 +1,15 @@
 "use client"
 
 import { LayoutGrid, CheckCircle, Activity, History, Users, ChevronRight, Sparkles } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 export const Navigation = ({ activeModule, onModuleChange, isManager, onCollapse }) => {
   const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    if (onCollapse) onCollapse(false)
+  }, [])
+
 
   const handleToggle = () => {
     const newCollapsed = !collapsed
@@ -34,7 +39,7 @@ export const Navigation = ({ activeModule, onModuleChange, isManager, onCollapse
     <nav className={`bg-gradient-to-b from-purple-900 via-purple-800 to-blue-900 h-screen fixed left-0 top-0 flex flex-col shadow-2xl transition-all duration-300 z-40 ${collapsed ? 'w-20' : 'w-64'}`}>
       {/* Header */}
       <div className="p-6 border-b border-white/10">
-        <button 
+        <button
           onClick={handleToggle}
           className="flex items-center gap-3 w-full hover:opacity-80 transition-opacity"
           aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
@@ -49,7 +54,7 @@ export const Navigation = ({ activeModule, onModuleChange, isManager, onCollapse
           {!collapsed && (
             <div className="overflow-hidden">
               <h1 className="text-white font-bold text-lg whitespace-nowrap">MVM NEXUS AI</h1>
-              <p className="text-purple-200 text-xs whitespace-nowrap">Gestión Inteligente</p>
+              <p className="text-purple-200 text-xs whitespace-nowrap">Proyectos con IA</p>
             </div>
           )}
         </button>
@@ -61,24 +66,23 @@ export const Navigation = ({ activeModule, onModuleChange, isManager, onCollapse
           {filteredItems.map((item) => {
             const Icon = item.icon
             const isActive = activeModule === item.id
-            
+
             return (
               <li key={item.id}>
                 <button
                   onClick={() => onModuleChange(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative ${
-                    isActive
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative ${isActive
                       ? "bg-white/20 text-white shadow-lg"
                       : "text-purple-100 hover:bg-white/10 hover:text-white"
-                  }`}
+                    }`}
                   title={collapsed ? item.label : ""}
                 >
                   {isActive && (
                     <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-purple-400 to-blue-400 rounded-r-full"></div>
                   )}
-                  
+
                   <Icon className={`flex-shrink-0 w-5 h-5 ${isActive ? 'text-white' : 'text-purple-300 group-hover:text-white'} transition-colors`} />
-                  
+
                   {!collapsed && (
                     <span className="font-medium text-sm whitespace-nowrap overflow-hidden text-ellipsis">
                       {item.label}

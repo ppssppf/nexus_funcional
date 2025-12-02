@@ -153,14 +153,14 @@ export const LoginScreen = ({ onShowToast }) => {
             </div>
 
             {/* Enlace "Olvidé mi contraseña" */}
-            <div className="flex items-center justify-end">
+            {/* <div className="flex items-center justify-end">
               <button
                 type="button"
                 className="text-sm font-medium text-purple-600 hover:text-purple-700 transition-colors"
               >
                 ¿Olvidaste tu contraseña?
               </button>
-            </div>
+            </div> */}
 
             {/* Botón de submit */}
             <button

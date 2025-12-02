@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useAuth } from "../../contexts/AuthContext"
 import { proyectosAPI, historiasAPI } from "../../lib/api"
 import { Modal } from "../Modal"
-import { Button } from "../Button"
+import { Filter, X, Eye, Building2, Calendar, TrendingUp, CheckCircle, Clock, XCircle, Brain } from "lucide-react"
 
 export const HistoryModule = ({ onShowToast }) => {
   const { currentUser, isManager } = useAuth()
@@ -38,7 +38,6 @@ export const HistoryModule = ({ onShowToast }) => {
         data = await proyectosAPI.getByLeader(currentUser.id_usuario)
       }
 
-      // Load user stories for each project to calculate progress
       const projectsWithStories = await Promise.all(
         data.map(async (project) => {
           const stories = await historiasAPI.getByProject(project.id_proyecto)
@@ -68,7 +67,9 @@ export const HistoryModule = ({ onShowToast }) => {
     let filtered = [...projects]
 
     if (filters.company) {
-      filtered = filtered.filter((p) => p.id_empresa && p.id_empresa.toString().includes(filters.company))
+      filtered = filtered.filter((p) => 
+        p.empresa && p.empresa.toLowerCase().includes(filters.company.toLowerCase())
+      )
     }
 
     if (filters.status) {
@@ -122,26 +123,44 @@ export const HistoryModule = ({ onShowToast }) => {
   const stats = getStats()
 
   if (loading) {
-    return <div className="text-center py-8">Cargando histórico...</div>
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+          <p className="text-gray-600 font-medium">Cargando histórico...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div>
-      <div className="mb-8 pb-4 border-b-2 border-gray-200">
-        <h2 className="text-4xl font-bold text-blue-600 mb-4">Histórico de Proyectos</h2>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-1">
+          Histórico de Proyectos
+        </h2>
+        <p className="text-gray-600">Consulta el historial completo de proyectos</p>
+      </div>
 
-        <div className="flex flex-wrap gap-4 items-center">
+      {/* Filters */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="w-5 h-5 text-purple-600" />
+          <h3 className="font-semibold text-gray-800">Filtros</h3>
+        </div>
+        <div className="flex flex-wrap gap-3">
           <input
             type="text"
-            placeholder="Filtrar por ID empresa..."
+            placeholder="Buscar por nombre de empresa..."
             value={filters.company}
             onChange={(e) => setFilters({ ...filters, company: e.target.value })}
-            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600"
+            className="flex-1 min-w-[200px] px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all text-sm"
           />
           <select
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600"
+            className="px-4 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all text-sm"
           >
             <option value="">Todos los estados</option>
             <option value="pendiente">Pendiente</option>
@@ -150,150 +169,204 @@ export const HistoryModule = ({ onShowToast }) => {
             <option value="aprobado">Aprobado</option>
             <option value="no-aprobado">No Aprobado</option>
             <option value="cancelado">Cancelado</option>
+            <option value="completado">Completado</option>
           </select>
-          <Button variant="secondary" onClick={clearFilters}>
-            Limpiar Filtros
-          </Button>
+          <button
+            onClick={clearFilters}
+            className="flex items-center gap-2 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
+          >
+            <X className="w-4 h-4" />
+            Limpiar
+          </button>
         </div>
       </div>
 
+      {/* Stats Cards - Only for managers */}
       {isManager && (
-        <div className="grid grid-cols-4 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white p-6 rounded-xl text-center">
-            <h4 className="text-sm opacity-90 mb-2">Total Proyectos</h4>
-            <p className="text-5xl font-bold">{stats.total}</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-gradient-to-br from-purple-600 to-purple-700 text-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium opacity-90">Total Proyectos</h4>
+              <TrendingUp className="w-5 h-5 opacity-75" />
+            </div>
+            <p className="text-4xl font-bold">{stats.total}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white p-6 rounded-xl text-center">
-            <h4 className="text-sm opacity-90 mb-2">Aprobados</h4>
-            <p className="text-5xl font-bold">{stats.approved}</p>
+          <div className="bg-gradient-to-br from-green-600 to-green-700 text-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium opacity-90">Aprobados</h4>
+              <CheckCircle className="w-5 h-5 opacity-75" />
+            </div>
+            <p className="text-4xl font-bold">{stats.approved}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white p-6 rounded-xl text-center">
-            <h4 className="text-sm opacity-90 mb-2">Pendientes</h4>
-            <p className="text-5xl font-bold">{stats.pending}</p>
+          <div className="bg-gradient-to-br from-yellow-600 to-yellow-700 text-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium opacity-90">Pendientes</h4>
+              <Clock className="w-5 h-5 opacity-75" />
+            </div>
+            <p className="text-4xl font-bold">{stats.pending}</p>
           </div>
-          <div className="bg-gradient-to-br from-purple-600 to-purple-800 text-white p-6 rounded-xl text-center">
-            <h4 className="text-sm opacity-90 mb-2">No Aprobados</h4>
-            <p className="text-5xl font-bold">{stats.rejected}</p>
+          <div className="bg-gradient-to-br from-red-600 to-red-700 text-white p-6 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium opacity-90">Rechazados</h4>
+              <XCircle className="w-5 h-5 opacity-75" />
+            </div>
+            <p className="text-4xl font-bold">{stats.rejected}</p>
           </div>
         </div>
       )}
 
+      {/* Projects Table */}
       {filteredProjects.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <h3 className="text-2xl mb-2 text-gray-400">No se encontraron proyectos</h3>
-          <p>Intente ajustar los filtros</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Filter className="w-8 h-8 text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 mb-1">No se encontraron proyectos</h3>
+          <p className="text-gray-500 text-sm">Intenta ajustar los filtros de búsqueda</p>
         </div>
       ) : (
-        <div className="bg-white border-2 border-gray-200 rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gradient-to-r from-blue-600 to-purple-700 text-white">
-              <tr>
-                <th className="px-4 py-4 text-left font-semibold">Proyecto</th>
-                <th className="px-4 py-4 text-left font-semibold">Empresa</th>
-                <th className="px-4 py-4 text-left font-semibold">Nivel IA</th>
-                <th className="px-4 py-4 text-left font-semibold">Estado</th>
-                <th className="px-4 py-4 text-left font-semibold">Historias</th>
-                <th className="px-4 py-4 text-left font-semibold">Progreso</th>
-                <th className="px-4 py-4 text-left font-semibold">Fecha</th>
-                <th className="px-4 py-4 text-left font-semibold">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredProjects.map((project, index) => (
-                <tr
-                  key={project.id_proyecto}
-                  className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                    index === filteredProjects.length - 1 ? "border-b-0" : ""
-                  }`}
-                >
-                  <td className="px-4 py-4">
-                    <strong className="text-gray-800">{project.nombre}</strong>
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">{project.id_empresa}</td>
-                  <td className="px-4 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                        project.nivel_ia === "bajo"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : project.nivel_ia === "medio"
-                            ? "bg-purple-100 text-purple-800"
-                            : project.nivel_ia === "alto"
-                              ? "bg-fuchsia-100 text-fuchsia-800"
-                              : "bg-pink-100 text-pink-800"
-                      }`}
-                    >
-                      {getAILevelLabel(project.nivel_ia)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        project.estado_proyecto === "pendiente"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : project.estado_proyecto === "aprobado"
-                            ? "bg-green-100 text-green-800"
-                            : project.estado_proyecto === "no-aprobado"
-                              ? "bg-red-100 text-red-800"
-                              : project.estado_proyecto === "completado"
-                                ? "bg-blue-100 text-blue-800"
-                                : project.estado_proyecto === "devuelto"
-                                  ? "bg-orange-100 text-orange-800"
-                                  : project.estado_proyecto === "cancelado"
-                                    ? "bg-gray-100 text-gray-800"
-                                    : "bg-blue-200 text-blue-900"
-                      }`}
-                    >
-                      {getStatusLabel(project.estado_proyecto)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">
-                    {project.approvedCount}/{project.totalStories}
-                  </td>
-                  <td className="px-4 py-4 text-gray-600">{project.progress}%</td>
-                  <td className="px-4 py-4 text-gray-600">{new Date(project.fecha_creacion).toLocaleDateString()}</td>
-                  <td className="px-4 py-4">
-                    {project.estado_proyecto === "cancelado" && (
-                      <button
-                        onClick={() => viewCancelReason(project)}
-                        className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                      >
-                        👁️ Ver
-                      </button>
-                    )}
-                  </td>
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+                <tr>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Proyecto</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Empresa</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Nivel IA</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Estado</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Historias</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Progreso</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Fecha</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredProjects.map((project) => (
+                  <tr key={project.id_proyecto} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-gray-800 text-sm">{project.nombre?.toUpperCase()}</p>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-700">{project.empresa?.toUpperCase() || 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${
+                          project.nivel_ia === "bajo"
+                            ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            : project.nivel_ia === "medio"
+                              ? "bg-purple-50 text-purple-700 border border-purple-200"
+                              : project.nivel_ia === "alto"
+                                ? "bg-fuchsia-50 text-fuchsia-700 border border-fuchsia-200"
+                                : "bg-pink-50 text-pink-700 border border-pink-200"
+                        }`}
+                      >
+                        <Brain className="w-3 h-3" />
+                        {getAILevelLabel(project.nivel_ia)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          project.estado_proyecto === "pendiente"
+                            ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                            : project.estado_proyecto === "aprobado"
+                              ? "bg-green-100 text-green-700 border border-green-200"
+                              : project.estado_proyecto === "no-aprobado"
+                                ? "bg-red-100 text-red-700 border border-red-200"
+                                : project.estado_proyecto === "completado"
+                                  ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                  : project.estado_proyecto === "devuelto"
+                                    ? "bg-orange-100 text-orange-700 border border-orange-200"
+                                    : project.estado_proyecto === "cancelado"
+                                      ? "bg-gray-100 text-gray-700 border border-gray-200"
+                                      : "bg-purple-100 text-purple-700 border border-purple-200"
+                        }`}
+                      >
+                        {getStatusLabel(project.estado_proyecto)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-sm font-medium text-gray-700">
+                        {project.approvedCount}/{project.totalStories}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2 w-16">
+                          <div
+                            className="bg-gradient-to-r from-purple-600 to-blue-600 h-2 rounded-full transition-all"
+                            style={{ width: `${project.progress}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs font-semibold text-gray-600">{project.progress}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-600">
+                          {new Date(project.fecha_creacion).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      {project.estado_proyecto === "cancelado" && (
+                        <button
+                          onClick={() => viewCancelReason(project)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          Ver razón
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Cancel Reason Modal */}
       <Modal isOpen={showCancelModal} onClose={() => setShowCancelModal(false)} title="Razón de Cancelación">
         {selectedProject && (
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <h4 className="text-xl font-bold text-blue-600 mb-4">{selectedProject.nombre}</h4>
+          <div className="space-y-4">
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-4">
+              <h4 className="text-lg font-bold text-purple-900 mb-1">{selectedProject.nombre}</h4>
+              <p className="text-sm text-purple-700">ID: {selectedProject.id_proyecto}</p>
+            </div>
 
-            <div className="mb-4">
-              <strong className="block text-gray-700 mb-2">Fecha de Cancelación:</strong>
-              <p className="text-gray-600">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <strong className="text-sm text-gray-700">Fecha de Cancelación:</strong>
+              </div>
+              <p className="text-sm text-gray-600 ml-6">
                 {selectedProject.fecha_cancelacion
                   ? new Date(selectedProject.fecha_cancelacion).toLocaleString()
                   : "No disponible"}
               </p>
             </div>
 
-            <div>
-              <strong className="block text-gray-700 mb-2">Razón de Cancelación:</strong>
-              <p className="text-gray-600 whitespace-pre-wrap">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <strong className="block text-sm text-gray-700 mb-2">Razón de Cancelación:</strong>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">
                 {selectedProject.razon_cancelacion || "No se proporcionó una razón"}
               </p>
             </div>
 
-            <div className="mt-6 text-right">
-              <Button variant="secondary" onClick={() => setShowCancelModal(false)}>
+            <div className="flex justify-end pt-4 border-t">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors"
+              >
                 Cerrar
-              </Button>
+              </button>
             </div>
           </div>
         )}
