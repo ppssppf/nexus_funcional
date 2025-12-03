@@ -24,7 +24,10 @@ import {
   Rocket,
   ChevronRight,
   AlertCircle,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react"
+import { extractStoriesFromFile } from "../../lib/gemini" // Added import
 
 export const ProjectsModule = ({ onShowToast }) => {
   const { currentUser } = useAuth()
@@ -54,6 +57,9 @@ export const ProjectsModule = ({ onShowToast }) => {
   const [userStories, setUserStories] = useState([])
   const [newStory, setNewStory] = useState("")
   const [cancelReason, setCancelReason] = useState("")
+  // CHANGE: Estado para controlar la importación de historias
+  const [isImporting, setIsImporting] = useState(false)
+  const [importError, setImportError] = useState(null)
   const [showReturnReasonModal, setShowReturnReasonModal] = useState(false)
   const [selectedReturnProject, setSelectedReturnProject] = useState(null)
   const [returnReason, setReturnReason] = useState("")
@@ -174,6 +180,9 @@ export const ProjectsModule = ({ onShowToast }) => {
     setEditingProject(null)
     setNewStory("")
     setCurrentStep(1)
+    // Reset import state when closing the modal
+    setIsImporting(false)
+    setImportError(null)
   }
 
   const addUserStory = () => {
@@ -193,6 +202,52 @@ export const ProjectsModule = ({ onShowToast }) => {
 
   const removeUserStory = (id) => {
     setUserStories(userStories.filter((s) => s.id !== id))
+  }
+
+  const handleImportStories = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validar que sea CSV o Excel
+    const validExtensions = [".csv", ".xlsx", ".xls"]
+    const fileExtension = "." + file.name.split(".").pop().toLowerCase()
+
+    if (!validExtensions.includes(fileExtension)) {
+      setImportError("Solo se permiten archivos CSV o Excel (.csv, .xlsx, .xls)")
+      setTimeout(() => setImportError(null), 5000)
+      return
+    }
+
+    setIsImporting(true)
+    setImportError(null)
+
+    try {
+      // Llamar a Gemini para extraer las historias
+      const historias = await extractStoriesFromFile(file)
+
+      // Agregar las historias extraídas al estado
+      const newStories = historias.map((texto) => ({
+        id: Date.now() + Math.random(), // ID único
+        text: texto.trim(),
+        completada: false,
+        aprobada: false,
+      }))
+
+      setUserStories([...userStories, ...newStories])
+
+      // Mostrar mensaje de éxito
+      onShowToast(
+        `${historias.length} historia${historias.length !== 1 ? "s" : ""} importada${historias.length !== 1 ? "s" : ""} exitosamente`,
+        "success",
+      )
+    } catch (error) {
+      console.error("Error al importar historias:", error)
+      setImportError(error.message || "Error al importar historias del archivo")
+    } finally {
+      setIsImporting(false)
+      // Resetear el input file
+      event.target.value = ""
+    }
   }
 
   const calculateDuration = () => {
@@ -328,14 +383,13 @@ export const ProjectsModule = ({ onShowToast }) => {
       )
 
       // Ordenar por fecha (desc) y, en empate, por id_aprobacion (desc) para obtener la más reciente
-      const approvalFound = projectApprovals
-        .sort((a, b) => {
-          const da = new Date(a.fecha_aprobacion)
-          const db = new Date(b.fecha_aprobacion)
-          const cmp = db - da
-          if (cmp !== 0) return cmp
-          return (b.id_aprobacion || 0) - (a.id_aprobacion || 0)
-        })[0]
+      const approvalFound = projectApprovals.sort((a, b) => {
+        const da = new Date(a.fecha_aprobacion)
+        const db = new Date(b.fecha_aprobacion)
+        const cmp = db - da
+        if (cmp !== 0) return cmp
+        return (b.id_aprobacion || 0) - (a.id_aprobacion || 0)
+      })[0]
 
       if (approvalFound && approvalFound.motivo_devolucion) {
         setReturnReason(approvalFound.motivo_devolucion)
@@ -1172,7 +1226,63 @@ export const ProjectsModule = ({ onShowToast }) => {
                     <Plus className="w-4 h-4" />
                     Agregar
                   </button>
+                  <label className="relative">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={handleImportStories}
+                      disabled={isImporting}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.currentTarget.previousElementSibling.click()
+                      }}
+                      disabled={isImporting}
+                      className="px-5 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-semibold text-sm hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Importar historias desde CSV o Excel"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Importando...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Importar
+                        </>
+                      )}
+                    </button>
+                  </label>
                 </div>
+
+                {importError && (
+                  <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-xl flex items-start gap-2">
+                    <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">!</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-red-800">Error al importar</p>
+                      <p className="text-xs text-red-600 mt-1">{importError}</p>
+                    </div>
+                  </div>
+                )}
+
+                {userStories.length === 0 && (
+                  <div className="mb-4 p-3 bg-blue-50 border-2 border-blue-200 rounded-xl flex items-start gap-2">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-blue-800">Importa historias fácilmente</p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Puedes importar historias desde un archivo CSV o Excel. La IA leerá el archivo y las agregará
+                        automáticamente.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Lista de historias */}
                 <div className="bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 p-4 min-h-[200px]">
