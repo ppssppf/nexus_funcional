@@ -42,8 +42,11 @@ export const TrackingModule = () => {
   const [showLeaderModal, setShowLeaderModal] = useState(false)
   const [showManagerModal, setShowManagerModal] = useState(false)
   const [showProgressDetailsModal, setShowProgressDetailsModal] = useState(false)
+  const [showLeaderRejectModal, setShowLeaderRejectModal] = useState(false)
   const [pendingEvidences, setPendingEvidences] = useState([])
   const [projectStories, setProjectStories] = useState({})
+  const [navLoading, setNavLoading] = useState(false)
+  const [rejectDetail, setRejectDetail] = useState(null)
 
   const [projectLeader, setProjectLeader] = useState(null)
   const [projectCompany, setProjectCompany] = useState(null)
@@ -222,12 +225,50 @@ export const TrackingModule = () => {
   useEffect(() => {
     const pid = sessionStorage.getItem("nexusNavigateProjectId")
     const target = sessionStorage.getItem("nexusNavigateTarget")
+    const hid = sessionStorage.getItem("nexusNavigateHistoryId")
     if (pid && projects.length > 0 && target === "trackingReview") {
       const p = projects.find((x) => String(x.id_proyecto) === String(pid))
       if (p) {
-        openProgressDetailsModal(p)
-        sessionStorage.removeItem("nexusNavigateProjectId")
-        sessionStorage.removeItem("nexusNavigateTarget")
+        (async () => {
+          setNavLoading(true)
+          try {
+            await openProgressDetailsModal(p)
+          } finally {
+            sessionStorage.removeItem("nexusNavigateProjectId")
+            sessionStorage.removeItem("nexusNavigateTarget")
+            sessionStorage.removeItem("nexusNavigateHistoryId")
+            setNavLoading(false)
+          }
+        })()
+      }
+    }
+    if (pid && hid && projects.length > 0 && target === "leaderReject") {
+      const p = projects.find((x) => String(x.id_proyecto) === String(pid))
+      if (p) {
+        (async () => {
+          setNavLoading(true)
+          try {
+            const stories = await historiasAPI.getByProject(p.id_proyecto)
+            setProjectStories((prev) => ({ ...prev, [p.id_proyecto]: stories }))
+            const story = stories.find((s) => String(s.id_historia) === String(hid))
+            const approvals = await aprobacionesHistoriaAPI.getAll()
+            const last = approvals
+              .filter((a) => String(a.id_historia) === String(hid) && a.estado === "rechazado")
+              .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))[0]
+            let manager = null
+            if (last?.id_gerente) {
+              try { manager = await usuariosAPI.getById(last.id_gerente) } catch { manager = null }
+            }
+            setSelectedProject(p)
+            setRejectDetail({ project: p, story, approval: last, manager })
+            setShowLeaderRejectModal(true)
+          } finally {
+            sessionStorage.removeItem("nexusNavigateProjectId")
+            sessionStorage.removeItem("nexusNavigateTarget")
+            sessionStorage.removeItem("nexusNavigateHistoryId")
+            setNavLoading(false)
+          }
+        })()
       }
     }
   }, [projects])
@@ -407,6 +448,14 @@ export const TrackingModule = () => {
 
   return (
     <div className="space-y-6">
+      {navLoading && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 p-6 bg-white rounded-xl shadow-lg">
+            <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+            <p className="text-sm text-gray-600">Cargando detalles…</p>
+          </div>
+        </div>
+      )}
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -914,6 +963,31 @@ export const TrackingModule = () => {
                 </button>
               </div>
             </form>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Detalle de Rechazo/Devolución (Líder) */}
+      <Modal isOpen={showLeaderRejectModal} onClose={() => setShowLeaderRejectModal(false)} title="Detalle de Historia" size="large">
+        {rejectDetail && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 -m-6 mb-6 p-6 rounded-t-lg">
+              <h3 className="text-xl font-bold text-white mb-1">{rejectDetail.project.nombre?.toUpperCase()}</h3>
+              <p className="text-red-100">Resultado del gerente: {rejectDetail.approval?.estado || "rechazado"}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-sm text-gray-700"><span className="font-medium">Historia:</span> {rejectDetail.story?.descripcion || rejectDetail.story?.id_historia}</div>
+              <div className="text-sm text-gray-700"><span className="font-medium">Gerente:</span> {rejectDetail.manager?.nombre || rejectDetail.approval?.id_gerente}</div>
+              <div className="col-span-2">
+                <label className="block mb-2 text-sm font-semibold text-gray-700">Comentario</label>
+                <div className="p-4 border-2 border-red-200 bg-red-50 rounded-lg text-sm text-red-800">
+                  {rejectDetail.approval?.comentario || "Sin comentario"}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t-2 border-gray-100">
+              <button type="button" onClick={() => setShowLeaderRejectModal(false)} className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors">Cerrar</button>
+            </div>
           </div>
         )}
       </Modal>

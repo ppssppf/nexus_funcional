@@ -26,10 +26,13 @@ function App() {
 
   useEffect(() => {
     const handler = (e) => {
-      const { module, projectId, target } = e.detail || {}
+      const { module, projectId, target, historyId } = e.detail || {}
       if (module) {
         if (projectId) {
           sessionStorage.setItem("nexusNavigateProjectId", String(projectId))
+        }
+        if (historyId) {
+          sessionStorage.setItem("nexusNavigateHistoryId", String(historyId))
         }
         if (target) {
           sessionStorage.setItem("nexusNavigateTarget", String(target))

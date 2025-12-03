@@ -2,13 +2,14 @@
 
 import { useAuth } from "../contexts/AuthContext"
 import { LogOut, User, Shield, Bell, CheckCircle2, RotateCcw, XCircle, Clock, Sparkles, Upload } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { proyectosAPI, aprobacionesAPI, aprobacionesHistoriaAPI, historiasAPI, evidenciasAPI } from "../lib/api"
 import { supabase } from "../lib/supabase"
 
 export const Header = () => {
   const { currentUser, logout, isManager } = useAuth()
   const [open, setOpen] = useState(false)
+  const dropdownRef = useRef(null)
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [projectIds, setProjectIds] = useState([])
@@ -63,10 +64,13 @@ export const Header = () => {
       const histIds = new Set(myHist.map((h) => h.id_historia))
       const storyApprovals = await aprobacionesHistoriaAPI.getAll()
       for (const ah of storyApprovals) {
-        if (histIds.has(ah.id_historia) && ah.estado === "aprobado") {
-          const story = myHist.find((h) => h.id_historia === ah.id_historia)
-          const proj = projects.find((p) => p.id_proyecto === story?.id_proyecto)
-          items.push({ id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: story?.id_proyecto, text: `Historia aprobada en ${proj?.nombre || story?.id_proyecto}`, ts: ah.fecha || new Date().toISOString(), type: "historia" })
+        if (!histIds.has(ah.id_historia)) continue
+        const story = myHist.find((h) => h.id_historia === ah.id_historia)
+        const proj = projects.find((p) => p.id_proyecto === story?.id_proyecto)
+        if (ah.estado === "aprobado") {
+          items.push({ id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: story?.id_proyecto, historyId: ah.id_historia, text: `Historia aprobada en ${proj?.nombre || story?.id_proyecto}`, ts: ah.fecha || new Date().toISOString(), type: "historia" })
+        } else if (ah.estado === "rechazado") {
+          items.push({ id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: story?.id_proyecto, historyId: ah.id_historia, text: `Historia rechazada en ${proj?.nombre || story?.id_proyecto}`, ts: ah.fecha || new Date().toISOString(), type: "rechazado" })
         }
       }
       const inReview = projects.filter((p) => p.estado_proyecto === "en-revision")
@@ -146,10 +150,14 @@ export const Header = () => {
       })
       ch.on("postgres_changes", { event: "INSERT", schema: "public", table: "aprobacion_historia" }, (payload) => {
         const ah = payload.new
-        if (ah.estado === "aprobado") {
-          const pid = histMap.get(ah.id_historia)
-          if (pid && projectIds.includes(pid)) {
-            const item = { id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: pid, text: `Historia aprobada en ${pid}`, ts: ah.fecha || new Date().toISOString(), type: "historia" }
+        const pid = histMap.get(ah.id_historia)
+        if (pid && projectIds.includes(pid)) {
+          if (ah.estado === "aprobado") {
+            const item = { id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: pid, historyId: ah.id_historia, text: `Historia aprobada en ${pid}`, ts: ah.fecha || new Date().toISOString(), type: "historia" }
+            const read = getReadSet()
+            if (!read.has(item.id)) pushItem(item)
+          } else if (ah.estado === "rechazado") {
+            const item = { id: `ah_${ah.id_aprobacion_historia || `${ah.id_historia}_${ah.fecha}`}`, projectId: pid, historyId: ah.id_historia, text: `Historia rechazada en ${pid}`, ts: ah.fecha || new Date().toISOString(), type: "rechazado" }
             const read = getReadSet()
             if (!read.has(item.id)) pushItem(item)
           }
@@ -175,6 +183,16 @@ export const Header = () => {
     setOpen(next)
   }
 
+  useEffect(() => {
+    const handler = (e) => {
+      if (!open) return
+      const el = dropdownRef.current
+      if (el && !el.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [open])
+
   const markAllSeen = () => {
     const read = getReadSet()
     notifications.forEach((n) => read.add(n.id))
@@ -196,7 +214,8 @@ export const Header = () => {
           if (notif.type === "evidencia") return { module: "tracking", target: "trackingReview" }
           return { module: "approval", target: "approvalDetail" }
         } else {
-          if (["aprobado", "devuelto", "rechazado"].includes(notif.type)) return { module: "projects", target: "projectsDetail" }
+          if (["aprobado", "devuelto"].includes(notif.type) && String(notif.id || "").startsWith("ap_")) return { module: "projects", target: "projectsDetail" }
+          if (["rechazado"].includes(notif.type) && String(notif.id || "").startsWith("ah_")) return { module: "tracking", target: "leaderReject" }
           if (notif.type === "historia") return { module: "tracking", target: "trackingReview" }
           if (notif.type === "pendiente") return { module: "projects", target: "projectsDetail" }
           return { module: "projects", target: "projectsDetail" }
@@ -205,7 +224,7 @@ export const Header = () => {
       const target = mapTarget()
       if (target && notif.projectId) {
         window.dispatchEvent(
-          new CustomEvent("nexus:navigate", { detail: { module: target.module, projectId: notif.projectId, target: target.target } }),
+          new CustomEvent("nexus:navigate", { detail: { module: target.module, projectId: notif.projectId, target: target.target, historyId: notif.historyId } }),
         )
       }
     }
@@ -228,7 +247,7 @@ export const Header = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative" ref={dropdownRef}>
               <button onClick={toggleOpen} className="relative p-2 rounded-lg hover:bg-white/10 text-purple-100 hover:text-white transition-colors" title="Notificaciones">
                 <Bell className="w-5 h-5" />
                 {unread > 0 && (
